@@ -286,6 +286,10 @@ export function CatalogueClient({
     const router = useRouter()
     const searchParams = useSearchParams()
 
+    const handleProductClick = (slug: string) => {
+        router.push(`/product/${slug}`)
+    }
+
     const [products, setProducts] =
         useState<ProductViewModel[]>(
             initialProducts,
@@ -375,21 +379,21 @@ export function CatalogueClient({
                         category.slug
                             ?.trim()
                             .toLowerCase() ===
-                            categoryParam ||
+                        categoryParam ||
                         category.id ===
-                            categoryParam,
+                        categoryParam,
                 )
                 : undefined
 
         const parsedMinPrice =
             minPriceParam !== null &&
-            minPriceParam !== ''
+                minPriceParam !== ''
                 ? Number(minPriceParam)
                 : undefined
 
         const parsedMaxPrice =
             maxPriceParam !== null &&
-            maxPriceParam !== ''
+                maxPriceParam !== ''
                 ? Number(maxPriceParam)
                 : undefined
 
@@ -414,9 +418,9 @@ export function CatalogueClient({
                 : {}),
             ...(parsedMinPrice !==
                 undefined &&
-            !Number.isNaN(
-                parsedMinPrice,
-            )
+                !Number.isNaN(
+                    parsedMinPrice,
+                )
                 ? {
                     minPrice:
                         parsedMinPrice,
@@ -424,9 +428,9 @@ export function CatalogueClient({
                 : {}),
             ...(parsedMaxPrice !==
                 undefined &&
-            !Number.isNaN(
-                parsedMaxPrice,
-            )
+                !Number.isNaN(
+                    parsedMaxPrice,
+                )
                 ? {
                     maxPrice:
                         parsedMaxPrice,
@@ -436,8 +440,8 @@ export function CatalogueClient({
 
         setSort(
             sortParam === 'newest' ||
-            sortParam === 'price-asc' ||
-            sortParam === 'price-desc'
+                sortParam === 'price-asc' ||
+                sortParam === 'price-desc'
                 ? sortParam
                 : 'recommended',
         )
@@ -485,9 +489,9 @@ export function CatalogueClient({
                 filters.categoryId ||
                 filters.brandId ||
                 filters.minPrice !==
-                    undefined ||
+                undefined ||
                 filters.maxPrice !==
-                    undefined,
+                undefined,
             )
         }, [filters])
 
@@ -532,9 +536,9 @@ export function CatalogueClient({
 
             if (
                 filters.minPrice !==
-                    undefined ||
+                undefined ||
                 filters.maxPrice !==
-                    undefined
+                undefined
             ) {
                 labels.push({
                     key: 'minPrice',
@@ -586,9 +590,9 @@ export function CatalogueClient({
                     nextFilters.brandId,
                 ) ||
                 nextFilters.minPrice !==
-                    undefined ||
+                undefined ||
                 nextFilters.maxPrice !==
-                    undefined
+                undefined
 
             let response: ApiProduct[]
 
@@ -600,7 +604,7 @@ export function CatalogueClient({
 
                 if (
                     nextSort ===
-                        'recommended' ||
+                    'recommended' ||
                     !sortParams
                 ) {
                     response =
@@ -614,16 +618,16 @@ export function CatalogueClient({
                 }
             } else {
                 const filterParams: ProductFilterParams =
-                    {
-                        categoryId:
-                            nextFilters.categoryId,
-                        brandId:
-                            nextFilters.brandId,
-                        minPrice:
-                            nextFilters.minPrice,
-                        maxPrice:
-                            nextFilters.maxPrice,
-                    }
+                {
+                    categoryId:
+                        nextFilters.categoryId,
+                    brandId:
+                        nextFilters.brandId,
+                    minPrice:
+                        nextFilters.minPrice,
+                    maxPrice:
+                        nextFilters.maxPrice,
+                }
 
                 response =
                     await getFilteredProducts(
@@ -644,7 +648,7 @@ export function CatalogueClient({
             if (
                 hasFilters &&
                 nextSort !==
-                    'recommended'
+                'recommended'
             ) {
                 mappedProducts =
                     sortProductsLocally(
@@ -954,7 +958,7 @@ export function CatalogueClient({
                         {/* Empty */}
                         {!loading &&
                             visibleProducts.length ===
-                                0 && (
+                            0 && (
                                 <div className="flex flex-col items-center justify-center py-20 text-center">
                                     <div className="mb-4 text-4xl">
                                         ○
@@ -985,11 +989,11 @@ export function CatalogueClient({
                         {/* Products */}
                         {!loading &&
                             visibleProducts.length >
-                                0 && (
+                            0 && (
                                 <div
                                     className={
                                         view ===
-                                        'grid'
+                                            'grid'
                                             ? 'grid grid-cols-2 gap-x-4 gap-y-8 pt-6 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-3 xl:grid-cols-4'
                                             : 'flex flex-col divide-y divide-line pt-2'
                                     }
@@ -1004,7 +1008,7 @@ export function CatalogueClient({
                                                 }
                                                 className={
                                                     view ===
-                                                    'list'
+                                                        'list'
                                                         ? 'py-5 first:pt-3'
                                                         : ''
                                                 }
@@ -1013,6 +1017,7 @@ export function CatalogueClient({
                                                     product={
                                                         product
                                                     }
+                                                    onProductClick={handleProductClick}
                                                 />
                                             </div>
                                         ),

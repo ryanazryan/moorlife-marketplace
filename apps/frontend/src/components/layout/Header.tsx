@@ -2,9 +2,32 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
-
+import { useEffect, useState } from 'react'
+import { apiRequest } from '@/api/client'
 import { useWishlist } from '@/components/providers/WishlistProvider'
+
+interface CartItemResponse {
+    quantity: number
+}
+
+interface CartApiResponse {
+    success: boolean
+    message?: string
+    data?: {
+        cart?: {
+            items?: CartItemResponse[]
+        }
+        items?: CartItemResponse[]
+    }
+}
+
+function getCartItems(response: CartApiResponse): CartItemResponse[] {
+    return (
+        response.data?.cart?.items ??
+        response.data?.items ??
+        []
+    )
+}
 
 export function Header() {
     const router = useRouter()
@@ -17,6 +40,124 @@ export function Header() {
 
     const [mobileSearchOpen, setMobileSearchOpen] =
         useState(false)
+
+    const [cartCount, setCartCount] =
+        useState(0)
+
+    const [cartLoading, setCartLoading] =
+        useState(true)
+
+    const loadCartCount = async () => {
+        try {
+            const response =
+                await apiRequest<CartApiResponse>(
+                    '/customer/cart',
+                )
+
+            const items = getCartItems(response)
+
+            const totalQuantity = items.reduce(
+                (total, item) =>
+                    total +
+                    Math.max(
+                        0,
+                        Number(item.quantity) || 0,
+                    ),
+                0,
+            )
+
+            setCartCount(totalQuantity)
+        } catch (error) {
+            console.error(
+                'Failed to load cart count:',
+                error,
+            )
+
+            setCartCount(0)
+        } finally {
+            setCartLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        void loadCartCount()
+
+        /*
+         * Cart components can dispatch this event after:
+         * - Add to Cart
+         * - Update quantity
+         * - Remove item
+         * - Change selection
+         */
+        const handleCartUpdated = (event: Event) => {
+            const customEvent =
+                event as CustomEvent<{
+                    totalQuantity?: number
+                    delta?: number
+                }>
+
+            const {
+                totalQuantity,
+                delta,
+            } = customEvent.detail ?? {}
+
+            // Used when the full cart quantity is known.
+            if (
+                typeof totalQuantity === 'number' &&
+                Number.isFinite(totalQuantity)
+            ) {
+                setCartCount(totalQuantity)
+                setCartLoading(false)
+                return
+            }
+
+            // Used for instant optimistic updates.
+            if (
+                typeof delta === 'number' &&
+                Number.isFinite(delta)
+            ) {
+                setCartCount((current) =>
+                    Math.max(0, current + delta),
+                )
+                setCartLoading(false)
+            }
+        }
+
+        window.addEventListener(
+            'ruma:cart-updated',
+            handleCartUpdated,
+        )
+
+        /*
+         * Refresh cart count when the browser tab becomes
+         * active again.
+         */
+        const handleVisibilityChange = () => {
+            if (
+                document.visibilityState ===
+                'visible'
+            ) {
+                void loadCartCount()
+            }
+        }
+
+        document.addEventListener(
+            'visibilitychange',
+            handleVisibilityChange,
+        )
+
+        return () => {
+            window.removeEventListener(
+                'ruma:cart-updated',
+                handleCartUpdated,
+            )
+
+            document.removeEventListener(
+                'visibilitychange',
+                handleVisibilityChange,
+            )
+        }
+    }, [])
 
     const handleSearchSubmit = (
         event: React.FormEvent<HTMLFormElement>,
@@ -271,8 +412,10 @@ export function Header() {
                             items-center
                             justify-center
                             text-ink-muted
+                            transition-colors
+                            hover:text-ink
                         "
-                        aria-label="Wishlist"
+                        aria-label={`Wishlist (${wishlistCount} items)`}
                     >
                         <svg
                             width="22"
@@ -292,7 +435,7 @@ export function Header() {
                             <span
                                 className="
                                     absolute
-                                    -right-0.5
+                                    -right-1
                                     -top-1
                                     flex
                                     h-4.5
@@ -303,13 +446,80 @@ export function Header() {
                                     bg-brand
                                     px-1
                                     text-[9px]
-                                    font-semibold
+                                    font-bold
+                                    leading-none
                                     text-white
                                 "
                             >
-                                {wishlistCount}
+                                {wishlistCount > 9
+                                    ? '9+'
+                                    : wishlistCount}
                             </span>
                         )}
+                    </Link>
+
+                    {/* =========================
+                        SHOPPING CART
+                    ========================== */}
+                    <Link
+                        href="/cart"
+                        className="
+                            relative
+                            flex
+                            h-9
+                            w-9
+                            items-center
+                            justify-center
+                            text-ink-muted
+                            transition-colors
+                            hover:text-ink
+                        "
+                        aria-label={`Shopping cart (${cartCount} items)`}
+                    >
+                        {/* Shopping bag / cart icon */}
+                        <svg
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.55"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M6 8.5V7a6 6 0 0 1 12 0v1.5" />
+                            <path d="M5 8.5h14l1 12.5H4L5 8.5Z" />
+                            <path d="M9 11.5a3 3 0 0 0 6 0" />
+                        </svg>
+
+                        {/* Quantity bubble */}
+                        {!cartLoading &&
+                            cartCount > 0 && (
+                                <span
+                                    className="
+                                        absolute
+                                        -right-1
+                                        -top-1
+                                        flex
+                                        h-4.5
+                                        min-w-4.5
+                                        items-center
+                                        justify-center
+                                        rounded-full
+                                        bg-brand
+                                        px-1
+                                        text-[9px]
+                                        font-bold
+                                        leading-none
+                                        text-white
+                                    "
+                                >
+                                    {cartCount > 9
+                                        ? '9+'
+                                        : cartCount}
+                                </span>
+                            )}
                     </Link>
 
                     {/* Account */}
@@ -320,7 +530,8 @@ export function Header() {
                             items-center
                             gap-2
                             text-sm
-                            text-ink
+                            text-ink-muted
+                            hover:text-ink
                         "
                         aria-label="Account"
                     >
@@ -343,7 +554,7 @@ export function Header() {
                             <path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8" />
                         </svg>
 
-                        <span className="hidden lg:inline">
+                        <span className="hidden lg:inline text-ink">
                             Account
                         </span>
                     </Link>

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-
+import { apiRequest } from '@/api/client'
 import type { ApiProduct } from '@/api/products'
 import { useWishlist } from '@/components/providers/WishlistProvider'
 
@@ -197,6 +197,204 @@ export function ProductDetail({
         )
     }
 
+    const [cartLoading, setCartLoading] = useState(false)
+    const [addedToCart, setAddedToCart] = useState(false)
+    const [cartError, setCartError] = useState<string | null>(null)
+    const [cartQuantity, setCartQuantity] = useState(0)
+    const [cartQuantityLoading, setCartQuantityLoading] = useState(true)
+
+    /*
+     * Get the quantity of this product already in the customer's cart.
+     *
+     * This is NOT a stock reservation. It only prevents this
+     * customer from adding more than the currently available
+     * quantity and gives the user clear feedback.
+     */
+    const loadCartQuantity = async () => {
+        try {
+            const response = await apiRequest<{
+                success?: boolean
+                data?: {
+                    cart?: {
+                        items?: Array<{
+                            product?: { id?: string }
+                            quantity?: number
+                        }>
+                    }
+                    items?: Array<{
+                        product?: { id?: string }
+                        quantity?: number
+                    }>
+                }
+            }>('/customer/cart')
+
+            const items =
+                response.data?.cart?.items ??
+                response.data?.items ??
+                []
+
+            const currentItem = items.find(
+                (item) => item.product?.id === product.id,
+            )
+
+            setCartQuantity(
+                Math.max(
+                    0,
+                    Number(currentItem?.quantity) || 0,
+                ),
+            )
+        } catch {
+            /*
+             * Backend remains the final authority when adding.
+             * Keep the product page usable if the cart lookup fails.
+             */
+        } finally {
+            setCartQuantityLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        let mounted = true
+
+        const load = async () => {
+            if (!mounted) return
+            await loadCartQuantity()
+        }
+
+        void load()
+
+        /*
+         * If Cart changes this product while Product Detail is
+         * mounted, refresh only the current-cart quantity.
+         */
+        const handleCartUpdated = (event: Event) => {
+            const customEvent =
+                event as CustomEvent<{
+                    source?: 'product-detail' | 'cart'
+                }>
+
+            if (customEvent.detail?.source === 'cart') {
+                void loadCartQuantity()
+            }
+        }
+
+        window.addEventListener(
+            'ruma:cart-updated',
+            handleCartUpdated,
+        )
+
+        return () => {
+            mounted = false
+            window.removeEventListener(
+                'ruma:cart-updated',
+                handleCartUpdated,
+            )
+        }
+    }, [product.id])
+
+    const maxAddableQuantity = Math.max(
+        0,
+        availableStock - cartQuantity,
+    )
+
+    const cannotAddMore =
+        !cartQuantityLoading &&
+        maxAddableQuantity <= 0
+
+    const handleAddToCart = async () => {
+        if (
+            isOutOfStock ||
+            cartLoading ||
+            cartQuantityLoading
+        ) {
+            return
+        }
+
+        if (quantity > maxAddableQuantity) {
+            setCartError(
+                cartQuantity > 0
+                    ? `You already have ${cartQuantity} in your cart. Only ${maxAddableQuantity} more can be added.`
+                    : `Only ${availableStock} items are currently available.`,
+            )
+            return
+        }
+
+        setCartLoading(true)
+        setCartError(null)
+
+        /*
+         * Header can update immediately.
+         * Cart v2 ignores this event as a cart reload signal until
+         * the successful backend event below.
+         */
+        window.dispatchEvent(
+            new CustomEvent('ruma:cart-updated', {
+                detail: {
+                    delta: quantity,
+                    source: 'product-detail',
+                    syncCart: false,
+                },
+            }),
+        )
+
+        try {
+            await apiRequest('/customer/cart/items', {
+                method: 'POST',
+                body: JSON.stringify({
+                    productId: product.id,
+                    quantity,
+                }),
+            })
+
+            setCartQuantity(
+                (current) => current + quantity,
+            )
+
+            setAddedToCart(true)
+
+            /*
+             * Tell a mounted Cart page to reload from the backend
+             * now that the POST has definitely succeeded.
+             * delta=0 prevents another Header count change.
+             */
+            window.dispatchEvent(
+                new CustomEvent('ruma:cart-updated', {
+                    detail: {
+                        delta: 0,
+                        source: 'product-detail',
+                        syncCart: true,
+                    },
+                }),
+            )
+
+            window.setTimeout(() => {
+                setAddedToCart(false)
+            }, 2000)
+        } catch (error) {
+            /*
+             * Roll back only the Header's optimistic update.
+             */
+            window.dispatchEvent(
+                new CustomEvent('ruma:cart-updated', {
+                    detail: {
+                        delta: -quantity,
+                        source: 'product-detail',
+                        syncCart: false,
+                    },
+                }),
+            )
+
+            setCartError(
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to add product to cart.',
+            )
+        } finally {
+            setCartLoading(false)
+        }
+    }
+
+
     return (
         <main className="min-h-screen bg-canvas">
             <div className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
@@ -233,7 +431,7 @@ export function ProductDetail({
                     {/* Gallery */}
                     <div>
                         <div className="overflow-hidden rounded-xl bg-muted-surface">
-                            <div className="aspect-[4/5]">
+                            <div className="aspect-4/5">
                                 {images.length > 0 ? (
                                     <img
                                         src={images[activeImage].url}
@@ -260,7 +458,7 @@ export function ProductDetail({
                                             }
                                             aria-label={`View product image ${index + 1}`}
                                             className={[
-                                                'aspect-[4/5] w-20 shrink-0 overflow-hidden rounded-lg',
+                                                'aspect-4/5 w-20 shrink-0 overflow-hidden rounded-lg',
                                                 'transition-all duration-200',
                                                 index === activeImage
                                                     ? 'ring-2 ring-brand ring-offset-2'
@@ -345,8 +543,8 @@ export function ProductDetail({
                                     isOutOfStock
                                         ? 'border-red-200 bg-red-50'
                                         : isLowStock
-                                          ? 'border-amber-200 bg-amber-50'
-                                          : 'border-line bg-muted-surface/50',
+                                            ? 'border-amber-200 bg-amber-50'
+                                            : 'border-line bg-muted-surface/50',
                                 ].join(' ')}
                             >
                                 <div className="flex items-center gap-3">
@@ -356,8 +554,8 @@ export function ProductDetail({
                                             isOutOfStock
                                                 ? 'bg-red-100 text-red-600'
                                                 : isLowStock
-                                                  ? 'bg-amber-100 text-amber-600'
-                                                  : 'bg-green-100 text-green-600',
+                                                    ? 'bg-amber-100 text-amber-600'
+                                                    : 'bg-green-100 text-green-600',
                                         ].join(' ')}
                                     >
                                         {isOutOfStock ? (
@@ -402,8 +600,8 @@ export function ProductDetail({
                                             {isOutOfStock
                                                 ? 'Out of stock'
                                                 : isLowStock
-                                                  ? 'Low stock'
-                                                  : 'In stock'}
+                                                    ? 'Low stock'
+                                                    : 'In stock'}
                                         </p>
 
                                         <p className="mt-0.5 text-xs text-ink-muted">
@@ -458,13 +656,72 @@ export function ProductDetail({
 
                             <button
                                 type="button"
-                                disabled={isOutOfStock}
-                                className="h-12 w-full rounded-lg bg-brand px-6 text-sm font-semibold text-white transition-colors hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40"
+                                onClick={handleAddToCart}
+                                disabled={
+                                    isOutOfStock ||
+                                    cartLoading ||
+                                    cartQuantityLoading ||
+                                    cannotAddMore
+                                }
+                                className={[
+                                    'h-12 w-full rounded-lg px-6 text-sm font-semibold',
+                                    'transition-colors duration-200',
+                                    'disabled:cursor-not-allowed disabled:opacity-40',
+                                    addedToCart
+                                        ? 'bg-brand text-white'
+                                        : 'bg-brand text-white hover:bg-brand-dark',
+                                ].join(' ')}
                             >
-                                {isOutOfStock
-                                    ? 'Out of Stock'
-                                    : 'Add to cart'}
+                                {isOutOfStock ? (
+                                    'Out of Stock'
+                                ) : cartQuantityLoading ? (
+                                    'Checking cart...'
+                                ) : cannotAddMore ? (
+                                    'Maximum quantity in cart'
+                                ) : cartLoading ? (
+                                    'Adding...'
+                                ) : addedToCart ? (
+                                    <span className="flex items-center justify-center gap-2">
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M20 6 9 17l-5-5" />
+                                        </svg>
+                                        Added to cart
+                                    </span>
+                                ) : (
+                                    'Add to cart'
+                                )}
                             </button>
+
+                            {cartQuantity > 0 && (
+                                <p className="text-xs leading-relaxed text-ink-muted">
+                                    You already have{' '}
+                                    <span className="font-medium text-ink">
+                                        {cartQuantity}
+                                    </span>{' '}
+                                    in your cart.
+                                    {maxAddableQuantity > 0
+                                        ? ` You can add up to ${maxAddableQuantity} more.`
+                                        : ' You have reached the currently available quantity.'}
+                                </p>
+                            )}
+
+                            {cartError && (
+                                <p
+                                    role="alert"
+                                    className="text-xs leading-relaxed text-red-600"
+                                >
+                                    {cartError}
+                                </p>
+                            )}
 
                             <button
                                 type="button"
@@ -742,7 +999,7 @@ export function ProductDetail({
                                         stars={stars}
                                         count={
                                             ratingDistribution[
-                                                stars as keyof typeof ratingDistribution
+                                            stars as keyof typeof ratingDistribution
                                             ]
                                         }
                                         total={totalReviews}
@@ -837,7 +1094,7 @@ export function ProductDetail({
                                         href={`/product/${related.slug}`}
                                         className="group"
                                     >
-                                        <div className="aspect-[4/5] overflow-hidden rounded-xl bg-muted-surface">
+                                        <div className="aspect-4/5 overflow-hidden rounded-xl bg-muted-surface">
                                             {relatedImage ? (
                                                 <img
                                                     src={relatedImage.url}
