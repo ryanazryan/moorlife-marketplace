@@ -295,9 +295,9 @@ price Int
 
 newUntil DateTime? @map("new_until")
 weightGram Int? @map("weight_gram")
-lengthCm Int? @map("length_cm")
-widthCm Int? @map("width_cm")
-heightCm Int? @map("height_cm")
+lengthCm Float? @map("length_cm")
+widthCm Float? @map("width_cm")
+heightCm Float? @map("height_cm")
 
 brandId String @map("brand_id") @db.Uuid
 supplierId String @map("supplier_id") @db.Uuid
