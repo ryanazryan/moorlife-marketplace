@@ -257,6 +257,7 @@ export class CartService {
         id: true,
         cartId: true,
         productId: true,
+        quantity: true,
         product: {
           select: {
             inventory: {
@@ -277,7 +278,27 @@ export class CartService {
       throw new BadRequestException('Product inventory not found.');
     }
 
-    if (quantity > cartItem.product.inventory.availableQuantity) {
+    /*
+     * Decreasing quantity never requires additional stock.
+     *
+     * Example:
+     * Cart quantity = 4
+     * Available stock = 0
+     * Requested quantity = 3
+     *
+     * This MUST be allowed because the customer is
+     * releasing one unit from their cart.
+     */
+    const isIncreasing = quantity > cartItem.quantity;
+
+    /*
+     * Only validate available stock when the customer
+     * is actually increasing the cart quantity.
+     */
+    if (
+      isIncreasing &&
+      quantity > cartItem.product.inventory.availableQuantity
+    ) {
       throw new BadRequestException(
         `Insufficient stock. Available quantity: ${cartItem.product.inventory.availableQuantity}.`,
       );

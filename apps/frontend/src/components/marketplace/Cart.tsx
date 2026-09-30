@@ -149,7 +149,7 @@ export default function Cart() {
              */
             if (
                 customEvent.detail?.source ===
-                    'product-detail' &&
+                'product-detail' &&
                 customEvent.detail?.syncCart === true
             ) {
                 void loadCart()
@@ -441,32 +441,36 @@ export default function Cart() {
             return
         }
 
+        const isIncreasing = nextQuantity > item.quantity
         const previousCart = cart
 
-        /*
-         * Optimistic update.
-         *
-         * UI berubah langsung tanpa menunggu response API.
-         */
-        const optimisticCart: CustomerCart = {
-            ...cart,
-            items: cart.items.map((currentItem) =>
-                currentItem.cartItemId === item.cartItemId
-                    ? {
-                        ...currentItem,
-                        quantity: nextQuantity,
-                        subtotal:
-                            currentItem.pricing.finalPrice *
-                            nextQuantity,
-                    }
-                    : currentItem,
-            ),
-        }
-
-        setCart(optimisticCart)
         setUpdatingItemId(item.cartItemId)
         setError(null)
         clearStockError(item.cartItemId)
+
+        /*
+         * DECREASE:
+         * Safe to update optimistically because reducing quantity
+         * does not require additional stock.
+         */
+        if (!isIncreasing) {
+            const optimisticCart: CustomerCart = {
+                ...cart,
+                items: cart.items.map((currentItem) =>
+                    currentItem.cartItemId === item.cartItemId
+                        ? {
+                            ...currentItem,
+                            quantity: nextQuantity,
+                            subtotal:
+                                currentItem.pricing.finalPrice *
+                                nextQuantity,
+                        }
+                        : currentItem,
+                ),
+            }
+
+            setCart(optimisticCart)
+        }
 
         try {
             const response = await updateCartQuantity(
@@ -475,41 +479,65 @@ export default function Cart() {
             )
 
             /*
-             * Gunakan response backend kalau bentuknya
-             * valid.
+             * For INCREASE:
+             * The UI was not changed optimistically.
+             * Only update it after the backend confirms success.
              */
-            if (
-                response &&
-                Array.isArray(response.items)
-            ) {
-                setCart(response)
+            if (isIncreasing) {
+                setCart((currentCart) => {
+                    if (!currentCart) {
+                        return currentCart
+                    }
+
+                    return {
+                        ...currentCart,
+                        items: currentCart.items.map(
+                            (currentItem) =>
+                                currentItem.cartItemId ===
+                                    item.cartItemId
+                                    ? {
+                                        ...currentItem,
+                                        quantity: nextQuantity,
+                                        subtotal:
+                                            currentItem
+                                                .pricing
+                                                .finalPrice *
+                                            nextQuantity,
+                                    }
+                                    : currentItem,
+                        ),
+                    }
+                })
             }
 
             /*
-             * Beritahu Header dan Cart lain bahwa cart berubah.
-             * Delta dihitung dari quantity sebelum optimistic update.
+             * Notify Header that the cart quantity changed.
              */
             window.dispatchEvent(
                 new CustomEvent('ruma:cart-updated', {
                     detail: {
-                        delta: nextQuantity - item.quantity,
+                        delta:
+                            nextQuantity -
+                            item.quantity,
                         source: 'cart',
                     },
                 }),
             )
         } catch (err) {
             /*
-             * Quantity is rolled back, while the stock message
-             * is attached only to the affected cart item.
+             * Only DECREASE needs rollback because it was
+             * optimistically applied.
+             *
+             * INCREASE was never shown optimistically, so
+             * the quantity naturally stays unchanged.
              */
-            setCart(previousCart)
+            if (!isIncreasing) {
+                setCart(previousCart)
+            }
 
-            const message =
-                getStockErrorMessage(err)
+            const message = getStockErrorMessage(err)
 
-            if (
-                /available|stock/i.test(message)
-            ) {
+            if (/available|stock/i.test(message)) {
                 setStockErrors((current) => ({
                     ...current,
                     [item.cartItemId]: message,
@@ -1011,36 +1039,36 @@ export default function Cart() {
                                             {stockErrors[
                                                 item.cartItemId
                                             ] && (
-                                                <p
-                                                    role="alert"
-                                                    className="mt-3 flex items-center gap-1.5 text-xs text-red-600"
-                                                >
-                                                    <svg
-                                                        width="13"
-                                                        height="13"
-                                                        viewBox="0 0 24 24"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeWidth="1.8"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        aria-hidden="true"
+                                                    <p
+                                                        role="alert"
+                                                        className="mt-3 flex items-center gap-1.5 text-xs text-red-600"
                                                     >
-                                                        <path d="M12 9v4" />
-                                                        <path d="M12 17h.01" />
-                                                        <circle
-                                                            cx="12"
-                                                            cy="12"
-                                                            r="9"
-                                                        />
-                                                    </svg>
-                                                    {
-                                                        stockErrors[
+                                                        <svg
+                                                            width="13"
+                                                            height="13"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="1.8"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            aria-hidden="true"
+                                                        >
+                                                            <path d="M12 9v4" />
+                                                            <path d="M12 17h.01" />
+                                                            <circle
+                                                                cx="12"
+                                                                cy="12"
+                                                                r="9"
+                                                            />
+                                                        </svg>
+                                                        {
+                                                            stockErrors[
                                                             item.cartItemId
-                                                        ]
-                                                    }
-                                                </p>
-                                            )}
+                                                            ]
+                                                        }
+                                                    </p>
+                                                )}
                                         </div>
 
                                         {/* Right price */}

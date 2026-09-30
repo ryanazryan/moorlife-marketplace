@@ -31,7 +31,6 @@ const navItems: NavItem[] = [
             </svg>
         ),
     },
-
     {
         label: 'Browse',
         href: '/catalogue',
@@ -46,28 +45,12 @@ const navItems: NavItem[] = [
                 strokeLinecap="round"
                 aria-hidden="true"
             >
-                <line
-                    x1="5"
-                    y1="7"
-                    x2="19"
-                    y2="7"
-                />
-                <line
-                    x1="5"
-                    y1="12"
-                    x2="19"
-                    y2="12"
-                />
-                <line
-                    x1="5"
-                    y1="17"
-                    x2="19"
-                    y2="17"
-                />
+                <line x1="5" y1="7" x2="19" y2="7" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <line x1="5" y1="17" x2="19" y2="17" />
             </svg>
         ),
     },
-
     {
         label: 'Brands',
         href: '/brands',
@@ -89,7 +72,6 @@ const navItems: NavItem[] = [
             </svg>
         ),
     },
-
     {
         label: 'Account',
         href: '/account',
@@ -105,11 +87,7 @@ const navItems: NavItem[] = [
                 strokeLinejoin="round"
                 aria-hidden="true"
             >
-                <circle
-                    cx="12"
-                    cy="8"
-                    r="3.5"
-                />
+                <circle cx="12" cy="8" r="3.5" />
                 <path d="M4.5 21c.4-4.2 3.4-7 7.5-7s7.1 2.8 7.5 7" />
             </svg>
         ),
@@ -131,58 +109,70 @@ export function MobileBottomNav() {
     }
 
     return (
-        <nav
-            aria-label="Mobile navigation"
+        <div
             className="
-                fixed
-                inset-x-0
-                bottom-0
-                z-50
-                border-t
-                border-line
-                bg-surface
-                lg:hidden
-            "
+        fixed
+        inset-x-0
+        bottom-0
+        z-9999
+        lg:hidden
+        pointer-events-none
+    "
+            style={{
+                paddingBottom: 'env(safe-area-inset-bottom)',
+                transform: 'translateZ(0)',
+                WebkitTransform: 'translateZ(0)',
+            }}
         >
-            <div className="mx-auto grid h-16 max-w-md grid-cols-4">
-                {navItems.map((item) => {
-                    const active =
-                        isActive(item.href)
+            <nav
+                aria-label="Mobile navigation"
+                className="
+                    pointer-events-auto
+                    w-full
+                    border-t
+                    border-line
+                    bg-surface
+                "
+            >
+                <div className="mx-auto grid h-16 w-full max-w-md grid-cols-4">
+                    {navItems.map((item) => {
+                        const active = isActive(item.href)
 
-                    return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            aria-current={
-                                active
-                                    ? 'page'
-                                    : undefined
-                            }
-                            className={[
-                                'flex flex-col items-center justify-center gap-1',
-                                active
-                                    ? 'text-brand'
-                                    : 'text-ink-muted',
-                            ].join(' ')}
-                        >
-                            <span className="flex h-6 items-center justify-center">
-                                {item.icon}
-                            </span>
-
-                            <span
-                                className={[
-                                    'text-[11px] leading-none',
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                aria-current={
                                     active
-                                        ? 'font-medium'
-                                        : 'font-normal',
+                                        ? 'page'
+                                        : undefined
+                                }
+                                className={[
+                                    'flex min-w-0 flex-col items-center justify-center gap-1',
+                                    active
+                                        ? 'text-brand'
+                                        : 'text-ink-muted',
                                 ].join(' ')}
                             >
-                                {item.label}
-                            </span>
-                        </Link>
-                    )
-                })}
-            </div>
-        </nav>
+                                <span className="flex h-6 items-center justify-center">
+                                    {item.icon}
+                                </span>
+
+                                <span
+                                    className={[
+                                        'text-[11px] leading-none',
+                                        active
+                                            ? 'font-medium'
+                                            : 'font-normal',
+                                    ].join(' ')}
+                                >
+                                    {item.label}
+                                </span>
+                            </Link>
+                        )
+                    })}
+                </div>
+            </nav>
+        </div>
     )
 }

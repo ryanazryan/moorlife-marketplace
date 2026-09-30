@@ -5,6 +5,7 @@ import { PaymentService } from './payment.service';
 import { SessionsModule } from '../sessions/sessions.module';
 import { UsersModule } from '../users/users.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { PaymentExpirationService } from './payment-expiration.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
     PaymentController,
     PaymentSubmissionController,
   ],
-  providers: [PaymentService],
+  providers: [PaymentService, PaymentExpirationService],
   exports: [PaymentService],
 })
 export class PaymentModule {}

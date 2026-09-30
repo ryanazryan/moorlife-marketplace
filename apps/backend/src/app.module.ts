@@ -21,6 +21,7 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentModule } from './payment/payment.module';
 import paymentConfig from './config/payment.config';
 import { AdminModule } from './admin/admin.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -28,6 +29,9 @@ import { AdminModule } from './admin/admin.module';
       isGlobal: true,
       load: [cloudinaryConfig, shippingConfig, paymentConfig],
     }),
+
+    ScheduleModule.forRoot(),
+
     ThrottlerModule.forRoot([
       {
         name: 'default',
@@ -35,6 +39,7 @@ import { AdminModule } from './admin/admin.module';
         limit: 100,
       },
     ]),
+
     PrismaModule,
     AuthModule,
     CustomerModule,
@@ -51,6 +56,7 @@ import { AdminModule } from './admin/admin.module';
     PaymentModule,
     AdminModule,
   ],
+
   providers: [
     {
       provide: APP_GUARD,
